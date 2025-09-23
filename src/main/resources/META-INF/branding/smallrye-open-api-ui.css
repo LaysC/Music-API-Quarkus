@@ -1,4 +1,83 @@
-.swagger-ui img {
-  border-style: none;
-  border-radius: 5px;
+/* ===== Tema Escuro Simples e Confiável ===== */
+
+/* Estilos Gerais do Corpo */
+body {
+    background-color: #1a1a1a !important;
+    color: #f8f9fa; /* Branco geral para todo o texto */
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+}
+
+/* Fundo das Seções */
+.swagger-ui .opblock-tag-section, .swagger-ui .model-box {
+    background-color: #242424 !important;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+}
+
+/* Cabeçalho e Tags */
+.topbar {
+    background-color: #212121 !important;
+    border-bottom: 3px solid #6c757d;
+}
+
+.opblock-tag {
+    background-color: #282828 !important;
+    border-left: 5px solid #007bff;
+    color: #f8f9fa !important;
+}
+
+/* Estilos de Botões */
+.btn {
+    background-color: #007bff !important;
+    color: #fff !important;
+    border-radius: 4px;
+}
+
+.execute-wrapper .btn.execute {
+    background-color: #28a745 !important;
+}
+
+/* --- Cores dos Métodos HTTP --- */
+
+.opblock.opblock-get .opblock-summary-method { color: #28a745; }
+.opblock.opblock-post .opblock-summary-method { color: #ffc107; }
+.opblock.opblock-put .opblock-summary-method { color: #fd7e14; }
+.opblock.opblock-delete .opblock-summary-method { color: #dc3545; }
+
+/* --- Estilos de Texto e Descrições --- */
+
+/* Força a cor branca para todos os textos, títulos e links principais */
+.swagger-ui *,
+.swagger-ui p,
+.swagger-ui a,
+.swagger-ui h1,
+.swagger-ui h2,
+.swagger-ui h3,
+.swagger-ui li,
+.swagger-ui span,
+.swagger-ui .opblock-summary-path,
+.swagger-ui .opblock-summary-description,
+.swagger-ui .parameter__name,
+.swagger-ui .opblock-body,
+.swagger-ui .model,
+.swagger-ui .model-box,
+.swagger-ui .response-col_description,
+.swagger-ui .tab {
+    color: #f8f9fa !important;
+}
+
+/* --- Estilos de Código e JSON --- */
+
+pre, code {
+    background-color: #121212;
+    color: #f8f9fa !important;
+    border: 1px solid #333;
+}
+
+/* Campos de entrada */
+input[type="text"], textarea, select {
+    background-color: #242424;
+    color: #f8f9fa;
+    border: 1px solid #3a3a3a;
 }
