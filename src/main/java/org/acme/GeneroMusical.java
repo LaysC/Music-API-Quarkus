@@ -4,13 +4,16 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import java.util.HashSet;
 import java.util.Set;
 
 @Entity
 public class GeneroMusical extends PanacheEntityBase {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Schema(readOnly = true, example = "1")
     public Long id;
 
     @NotBlank(message = "O nome do gênero não pode ser vazio")
@@ -22,14 +25,18 @@ public class GeneroMusical extends PanacheEntityBase {
 
     // Many-to-Many inverso
     @ManyToMany(mappedBy = "generos", fetch = FetchType.LAZY)
-    @JsonIgnore
+    @JsonIgnore // Oculta a lista de músicas no JSON, evitando ciclos infinitos
     public Set<Musica> musicas = new HashSet<>();
 
     public GeneroMusical() {}
 
-    public GeneroMusical(long id, String nome, String descricao) {
-        this.id = id;
+    // Nota: O construtor com ID preenchido não é recomendado para Entidades JPA,
+    // pois força a criação de objetos "detached" que causam o erro EntityExistsException.
+    // Mantenha apenas o construtor padrão ou remova o 'id' do construtor:
+    /*
+    public GeneroMusical(String nome, String descricao) {
         this.nome = nome;
         this.descricao = descricao;
     }
+    */
 }

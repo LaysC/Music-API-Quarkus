@@ -5,7 +5,9 @@ import io.quarkus.panache.common.Sort;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType; // Importação necessária
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriBuilder; // Importação necessária
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -14,13 +16,17 @@ import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 
+import java.net.URI;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 @Path("/musicas")
+@Produces(MediaType.APPLICATION_JSON) // Padrão de retorno JSON para a classe toda
+@Consumes(MediaType.APPLICATION_JSON) // Padrão de consumo JSON para a classe toda
 public class MusicaResource {
 
+    // GET ALL
     @GET
     @Operation(
             summary = "Retorna todas as músicas (getAll)",
@@ -30,7 +36,6 @@ public class MusicaResource {
             responseCode = "200",
             description = "Lista retornada com sucesso",
             content = @Content(
-                    mediaType = "application/json",
                     schema = @Schema(implementation = Musica.class, type = SchemaType.ARRAY)
             )
     )
@@ -38,6 +43,7 @@ public class MusicaResource {
         return Response.ok(Musica.listAll()).build();
     }
 
+    // GET BY ID
     @GET
     @Path("{id}")
     @Operation(
@@ -48,16 +54,12 @@ public class MusicaResource {
             responseCode = "200",
             description = "Item retornado com sucesso",
             content = @Content(
-                    mediaType = "application/json",
-                    schema = @Schema(implementation = Musica.class, type = SchemaType.ARRAY)
+                    schema = @Schema(implementation = Musica.class) // CORRIGIDO: Retorna objeto único
             )
     )
     @APIResponse(
             responseCode = "404",
-            description = "Item não encontrado",
-            content = @Content(
-                    mediaType = "text/plain",
-                    schema = @Schema(implementation = String.class))
+            description = "Item não encontrado" // Removida a redundância de content/mediaType para 404
     )
     public Response getById(
             @Parameter(description = "Id da música a ser pesquisada", required = true)
@@ -69,6 +71,7 @@ public class MusicaResource {
         return Response.ok(entity).build();
     }
 
+    // SEARCH
     @GET
     @Operation(
             summary = "Retorna as músicas conforme o sistema de pesquisa (search)",
@@ -78,8 +81,7 @@ public class MusicaResource {
             responseCode = "200",
             description = "Item retornado com sucesso",
             content = @Content(
-                    mediaType = "application/json",
-                    schema = @Schema(implementation = Musica.class, type = SchemaType.ARRAY)
+                    schema = @Schema(implementation = SearchMusicaResponse.class) // Assumindo a classe de resposta correta
             )
     )
     @Path("/search")
@@ -113,18 +115,13 @@ public class MusicaResource {
             query = Musica.findAll(sortObj);
         } else {
             try {
-                // Tenta converter a pesquisa em número
                 int numero = Integer.parseInt(q);
-
-                // Busca apenas em campos numéricos
                 query = Musica.find(
                         "anoLancamento = ?1 or duracaoSegundos = ?1",
                         sortObj,
                         numero
                 );
-
             } catch (NumberFormatException e) {
-                // se não for número, busca só em campos textuais
                 query = Musica.find(
                         "lower(titulo) like ?1",
                         sortObj,
@@ -137,7 +134,7 @@ public class MusicaResource {
 
         var response = new SearchMusicaResponse();
         response.Musicas = musicas;
-        response.TotalMusicas = query.list().size();
+        response.TotalMusicas = (int) query.count(); // CORRIGIDO: Uso de query.count()
         response.TotalPages = query.pageCount();
         response.HasMore = effectivePage < query.pageCount() - 1;
         response.NextPage = response.HasMore ? "http://localhost:8080/musicas/search?q="+(q != null ? q : "")+"&page="+(effectivePage + 1) + (size > 0 ? "&size="+size : "") : "";
@@ -145,31 +142,27 @@ public class MusicaResource {
         return Response.ok(response).build();
     }
 
+    // POST (INSERT) - Corrigido para retornar 201 Created + ID
     @POST
     @Operation(
             summary = "Adiciona um registro à lista de músicas (insert)",
-            description = "Adiciona um item à lista de músicas por meio de POST e request body JSON"
+            description = "Adiciona um item à lista de músicas por meio de POST e request body JSON. O ID é gerado e retornado na resposta."
     )
     @RequestBody(
             required = true,
             content = @Content(
-                    mediaType = "application/json",
                     schema = @Schema(implementation = Musica.class)
             )
     )
     @APIResponse(
             responseCode = "201",
-            description = "Created",
+            description = "Created - Retorna o objeto criado com o ID gerado.",
             content = @Content(
-                    mediaType = "application/json",
                     schema = @Schema(implementation = Musica.class))
     )
     @APIResponse(
             responseCode = "400",
-            description = "Bad Request",
-            content = @Content(
-                    mediaType = "text/plain",
-                    schema = @Schema(implementation = String.class))
+            description = "Bad Request"
     )
     @Transactional
     public Response insert(@Valid Musica musica){
@@ -206,9 +199,16 @@ public class MusicaResource {
         }
 
         Musica.persist(musica);
-        return Response.status(Response.Status.CREATED).build();
+
+        // Retorna 201 Created e o objeto completo (com ID)
+        URI location = UriBuilder.fromResource(MusicaResource.class).path("{id}").build(musica.id);
+        return Response
+                .created(location)
+                .entity(musica)
+                .build();
     }
 
+    // DELETE
     @DELETE
     @Operation(
             summary = "Remove um registro da lista de músicas (delete)",
@@ -216,17 +216,11 @@ public class MusicaResource {
     )
     @APIResponse(
             responseCode = "204",
-            description = "Sem conteúdo",
-            content = @Content(
-                    mediaType = "text/plain",
-                    schema = @Schema(implementation = String.class))
+            description = "Sem conteúdo"
     )
     @APIResponse(
             responseCode = "404",
-            description = "Item não encontrado",
-            content = @Content(
-                    mediaType = "text/plain",
-                    schema = @Schema(implementation = String.class))
+            description = "Item não encontrado"
     )
     @Transactional
     @Path("{id}")
@@ -244,6 +238,7 @@ public class MusicaResource {
         return Response.noContent().build();
     }
 
+    // PUT (UPDATE)
     @PUT
     @Operation(
             summary = "Altera um registro da lista de músicas (update)",
@@ -252,7 +247,6 @@ public class MusicaResource {
     @RequestBody(
             required = true,
             content = @Content(
-                    mediaType = "application/json",
                     schema = @Schema(implementation = Musica.class)
             )
     )
@@ -260,16 +254,12 @@ public class MusicaResource {
             responseCode = "200",
             description = "Item editado com sucesso",
             content = @Content(
-                    mediaType = "application/json",
-                    schema = @Schema(implementation = Musica.class, type = SchemaType.ARRAY)
+                    schema = @Schema(implementation = Musica.class) // CORRIGIDO: Retorna objeto único
             )
     )
     @APIResponse(
             responseCode = "404",
-            description = "Item não encontrado",
-            content = @Content(
-                    mediaType = "text/plain",
-                    schema = @Schema(implementation = String.class))
+            description = "Item não encontrado"
     )
     @Transactional
     @Path("{id}")

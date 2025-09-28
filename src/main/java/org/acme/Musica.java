@@ -3,13 +3,17 @@ package org.acme;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
+import org.eclipse.microprofile.openapi.annotations.media.Schema; // Importação necessária
 import java.util.HashSet;
 import java.util.Set;
 
 @Entity
 public class Musica extends PanacheEntityBase {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    // CRÍTICO PARA O SWAGGER: Oculta o ID no Request Body (POST/PUT)
+    @Schema(readOnly = true, example = "1")
     public Long id;
 
     @NotBlank(message = "O título não pode ser vazio")

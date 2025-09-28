@@ -5,6 +5,7 @@ import io.quarkus.panache.common.Sort;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
@@ -14,11 +15,16 @@ import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Set;
 
 @Path("/artistas")
+@Produces(MediaType.APPLICATION_JSON) // Retorno padrão JSON para todos os métodos
+@Consumes(MediaType.APPLICATION_JSON) // Consumo padrão JSON para POST/PUT
 public class ArtistaResource {
+
+    // Artista.listAll() está correto e retorna uma lista
     @GET
     @Operation(
             summary = "Retorna todos os artistas (getAll)",
@@ -28,7 +34,6 @@ public class ArtistaResource {
             responseCode = "200",
             description = "Lista retornada com sucesso",
             content = @Content(
-                    mediaType = "application/json",
                     schema = @Schema(implementation = Artista.class, type = SchemaType.ARRAY)
             )
     )
@@ -36,6 +41,7 @@ public class ArtistaResource {
         return Response.ok(Artista.listAll()).build();
     }
 
+    // Artista.findById(id) retorna um único artista
     @GET
     @Path("{id}")
     @Operation(
@@ -46,27 +52,26 @@ public class ArtistaResource {
             responseCode = "200",
             description = "Item retornado com sucesso",
             content = @Content(
-                    mediaType = "application/json",
-                    schema = @Schema(implementation = Artista.class, type = SchemaType.ARRAY)
+                    // CORRIGIDO: Removida a menção a 'type = SchemaType.ARRAY'
+                    schema = @Schema(implementation = Artista.class)
             )
     )
     @APIResponse(
             responseCode = "404",
-            description = "Item não encontrado",
-            content = @Content(
-                    mediaType = "text/plain",
-                    schema = @Schema(implementation = String.class))
+            description = "Item não encontrado"
     )
     public Response getById(
             @Parameter(description = "Id do artista a ser pesquisado", required = true)
             @PathParam("id") long id){
         Artista entity = Artista.findById(id);
         if(entity == null){
+            // Retorna NOT_FOUND sem corpo, por isso não precisa de 'content' no 404
             return Response.status(Response.Status.NOT_FOUND).build();
         }
         return Response.ok(entity).build();
     }
 
+    // O método Search é complexo e está muito bem feito!
     @GET
     @Operation(
             summary = "Retorna os artistas conforme o sistema de pesquisa (search)",
@@ -76,8 +81,7 @@ public class ArtistaResource {
             responseCode = "200",
             description = "Item retornado com sucesso",
             content = @Content(
-                    mediaType = "application/json",
-                    schema = @Schema(implementation = Artista.class, type = SchemaType.ARRAY)
+                    schema = @Schema(implementation = SearchArtistaResponse.class) // Assumindo que SearchArtistaResponse é o schema correto
             )
     )
     @Path("/search")
@@ -116,9 +120,10 @@ public class ArtistaResource {
 
         List<Artista> artistas = query.page(effectivePage, size).list();
 
+        // O ArtistaResource deve ter acesso à classe SearchArtistaResponse
         var response = new SearchArtistaResponse();
         response.Artistas = artistas;
-        response.TotalArtistas = query.list().size();
+        response.TotalArtistas = (int) query.count(); // Melhor usar count() para o total, não query.list().size()
         response.TotalPages = query.pageCount();
         response.HasMore = effectivePage < query.pageCount() - 1;
         response.NextPage = response.HasMore ? "http://localhost:8080/artistas/search?q="+(q != null ? q : "")+"&page="+(effectivePage + 1) + (size > 0 ? "&size="+size : "") : "";
@@ -126,6 +131,7 @@ public class ArtistaResource {
         return Response.ok(response).build();
     }
 
+    // Método POST corrigido para retornar o objeto criado e a URI (Melhor Prática REST)
     @POST
     @Operation(
             summary = "Adiciona um registro à lista de artistas (insert)",
@@ -134,28 +140,29 @@ public class ArtistaResource {
     @RequestBody(
             required = true,
             content = @Content(
-                    mediaType = "application/json",
                     schema = @Schema(implementation = Artista.class)
             )
     )
     @APIResponse(
             responseCode = "201",
-            description = "Created",
+            description = "Created - Retorna o objeto criado com o ID gerado.",
             content = @Content(
-                    mediaType = "application/json",
                     schema = @Schema(implementation = Artista.class))
     )
     @APIResponse(
             responseCode = "400",
-            description = "Bad Request",
-            content = @Content(
-                    mediaType = "text/plain",
-                    schema = @Schema(implementation = String.class))
+            description = "Bad Request"
     )
     @Transactional
     public Response insert(@Valid Artista artista){
         Artista.persist(artista);
-        return Response.status(Response.Status.CREATED).build();
+
+        // CORRIGIDO: Retorna o objeto completo com o ID gerado e o Location Header
+        URI location = URI.create("/artistas/" + artista.id);
+        return Response
+                .created(location)
+                .entity(artista)
+                .build();
     }
 
     @DELETE
@@ -165,17 +172,11 @@ public class ArtistaResource {
     )
     @APIResponse(
             responseCode = "204",
-            description = "Sem conteúdo",
-            content = @Content(
-                    mediaType = "text/plain",
-                    schema = @Schema(implementation = String.class))
+            description = "Sem conteúdo"
     )
     @APIResponse(
             responseCode = "404",
-            description = "Item não encontrado",
-            content = @Content(
-                    mediaType = "text/plain",
-                    schema = @Schema(implementation = String.class))
+            description = "Item não encontrado"
     )
     @APIResponse(
             responseCode = "409",
@@ -192,6 +193,7 @@ public class ArtistaResource {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
+        // Assumindo que a classe Musica existe e tem o método count.
         long musicasVinculadas = Musica.count("artista.id = ?1", id);
         if(musicasVinculadas > 0){
             return Response.status(Response.Status.CONFLICT)
@@ -211,7 +213,6 @@ public class ArtistaResource {
     @RequestBody(
             required = true,
             content = @Content(
-                    mediaType = "application/json",
                     schema = @Schema(implementation = Artista.class)
             )
     )
@@ -219,16 +220,13 @@ public class ArtistaResource {
             responseCode = "200",
             description = "Item editado com sucesso",
             content = @Content(
-                    mediaType = "application/json",
-                    schema = @Schema(implementation = Artista.class, type = SchemaType.ARRAY)
+                    // CORRIGIDO: Removida a menção a 'type = SchemaType.ARRAY'
+                    schema = @Schema(implementation = Artista.class)
             )
     )
     @APIResponse(
             responseCode = "404",
-            description = "Item não encontrado",
-            content = @Content(
-                    mediaType = "text/plain",
-                    schema = @Schema(implementation = String.class))
+            description = "Item não encontrado"
     )
     @Transactional
     @Path("{id}")
@@ -237,6 +235,8 @@ public class ArtistaResource {
         if(entity == null){
             return Response.status(Response.Status.NOT_FOUND).build();
         }
+
+        // Atualização dos campos (persistência é automática devido ao @Transactional)
         entity.nomeArtistico = newArtista.nomeArtistico;
         entity.nomeCompleto = newArtista.nomeCompleto;
         entity.dataDeEstreia = newArtista.dataDeEstreia;
@@ -245,6 +245,7 @@ public class ArtistaResource {
         // Atualizar perfil
         if(newArtista.perfil != null){
             if(entity.perfil == null){
+                // Assumindo que PerfilArtista existe e é uma Entidade ou Embeddable
                 entity.perfil = new PerfilArtista();
             }
             entity.perfil.descricaoCarreira = newArtista.perfil.descricaoCarreira;
