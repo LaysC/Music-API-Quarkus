@@ -16,12 +16,14 @@ import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.faulttolerance.Fallback;
 import org.eclipse.microprofile.faulttolerance.Timeout;
+import org.eclipse.microprofile.faulttolerance.CircuitBreaker; // NOVO IMPORT
 import org.jboss.logging.Logger;
 
 import java.net.URI;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong; // NOVO IMPORT
 
 @Path("/artistas")
 @Produces(MediaType.APPLICATION_JSON)
@@ -29,9 +31,12 @@ import java.util.Set;
 public class ArtistaResource {
     
     private static final Logger LOGGER = Logger.getLogger(ArtistaResource.class);
+    
+    // CAMPOS NECESSÁRIOS PARA O CIRCUIT BREAKER E SIMULAÇÃO
+    private final AtomicLong counter = new AtomicLong(0); 
 
     // ====================================================================
-    // ENDPOINT COM @TIMEOUT e @FALLBACK (TOLERÂNCIA A FALHAS)
+    // 1. ENDPOINT COM @TIMEOUT e @FALLBACK (TOLERÂNCIA A FALHAS)
     // ====================================================================
     @GET
     @Path("/{id}/resiliente")
@@ -40,13 +45,13 @@ public class ArtistaResource {
         description = "Busca que simula lentidão e usa Timeout/Fallback para garantir resposta rápida."
     )
     @APIResponse(responseCode = "200", description = "Retorno do Artista ou do Fallback.")
-    @Timeout(500)
-    @Fallback(fallbackMethod = "retornarArtistaPadrao")
+    @Timeout(500) // TEMPO LIMITE: 500 milissegundos
+    @Fallback(fallbackMethod = "retornarArtistaPadrao") // ALTERNATIVA: Chama o fallback se o Timeout estourar
     public Response buscarDetalhesResilientes(
             @Parameter(description = "Id do artista", required = true)
             @PathParam("id") long id) throws InterruptedException {
         
-        // SIMULAÇÃO DE LENTIDÃO: Pode estourar o Timeout de 500ms
+        // SIMULAÇÃO DE LENTIDÃO (pode estourar o Timeout de 500ms)
         Thread.sleep(new Random().nextInt(800)); 
 
         Artista entity = Artista.findById(id);
@@ -57,6 +62,9 @@ public class ArtistaResource {
         return Response.ok(entity).build();
     }
     
+    /**
+     * MÉTODO DE FALLBACK (Alternativa Segura)
+     */
     public Response retornarArtistaPadrao(long id) {
         LOGGER.warnf("Timeout acionado para Artista ID %d. Retornando objeto padrão.", id);
         
@@ -68,7 +76,56 @@ public class ArtistaResource {
     }
     
     // ====================================================================
-    // MÉTODOS CRUD EXISTENTES
+    // 2. MÉTODO POST COM @CIRCUITBREAKER
+    // ====================================================================
+    @POST
+    @Operation(
+            summary = "Adiciona um registro à lista de artistas (insert)",
+            description = "Adiciona um item à lista de artistas por meio de POST e request body JSON"
+    )
+    @RequestBody(
+            required = true,
+            content = @Content(
+                    schema = @Schema(implementation = Artista.class)
+            )
+    )
+    @APIResponse(
+            responseCode = "201",
+            description = "Created - Retorna o objeto criado com o ID gerado.",
+            content = @Content(
+                    schema = @Schema(implementation = Artista.class))
+    )
+    @APIResponse(
+            responseCode = "400",
+            description = "Bad Request"
+    )
+    @Transactional
+    @CircuitBreaker( // DISJUNTOR: Protege a persistência contra falhas em cascata
+        requestVolumeThreshold = 5,
+        failureRatio = 0.6,
+        delay = 10000 
+    )
+    public Response insert(@Valid Artista artista){
+        
+        // --- CÓDIGO DE SIMULAÇÃO DO CIRCUIT BREAKER ---
+        final Long invocationNumber = counter.getAndIncrement();
+        if (invocationNumber % 5 >= 3) { 
+            LOGGER.errorf("Simulação de Falha #%d: Forçando RuntimeException para abrir o Circuit Breaker.", invocationNumber);
+            throw new RuntimeException("Falha na persistência simulada para abrir o disjuntor.");
+        }
+        // ---------------------------------------------------------
+
+        Artista.persist(artista);
+
+        URI location = URI.create("/artistas/" + artista.id);
+        return Response
+                .created(location)
+                .entity(artista)
+                .build();
+    }
+
+    // ====================================================================
+    // MÉTODOS CRUD RESTANTES
     // ====================================================================
 
     @GET
@@ -170,38 +227,6 @@ public class ArtistaResource {
         response.NextPage = response.HasMore ? "http://localhost:8080/artistas/search?q="+(q != null ? q : "")+"&page="+(effectivePage + 1) + (size > 0 ? "&size="+size : "") : "";
 
         return Response.ok(response).build();
-    }
-
-    @POST
-    @Operation(
-            summary = "Adiciona um registro à lista de artistas (insert)",
-            description = "Adiciona um item à lista de artistas por meio de POST e request body JSON"
-    )
-    @RequestBody(
-            required = true,
-            content = @Content(
-                    schema = @Schema(implementation = Artista.class)
-            )
-    )
-    @APIResponse(
-            responseCode = "201",
-            description = "Created - Retorna o objeto criado com o ID gerado.",
-            content = @Content(
-                    schema = @Schema(implementation = Artista.class))
-    )
-    @APIResponse(
-            responseCode = "400",
-            description = "Bad Request"
-    )
-    @Transactional
-    public Response insert(@Valid Artista artista){
-        Artista.persist(artista);
-
-        URI location = URI.create("/artistas/" + artista.id);
-        return Response
-                .created(location)
-                .entity(artista)
-                .build();
     }
 
     @DELETE
