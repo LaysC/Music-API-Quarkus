@@ -9,7 +9,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "GeneroMusical")
 public class GeneroMusical extends PanacheEntityBase {
 
     @Id
@@ -30,4 +29,14 @@ public class GeneroMusical extends PanacheEntityBase {
     public Set<Musica> musicas = new HashSet<>();
 
     public GeneroMusical() {}
+
+    // Nota: O construtor com ID preenchido não é recomendado para Entidades JPA,
+    // pois força a criação de objetos "detached" que causam o erro EntityExistsException.
+    // Mantenha apenas o construtor padrão ou remova o 'id' do construtor:
+    /*
+    public GeneroMusical(String nome, String descricao) {
+        this.nome = nome;
+        this.descricao = descricao;
+    }
+    */
 }
