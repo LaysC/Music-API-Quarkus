@@ -10,6 +10,7 @@ import java.util.List;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 @Entity
+@Table(name = "Artista")
 public class Artista extends PanacheEntityBase {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
