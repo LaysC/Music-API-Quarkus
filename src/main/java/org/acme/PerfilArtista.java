@@ -7,7 +7,6 @@ import jakarta.validation.constraints.Size;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 @Entity
-@Table(name = "PerfilArtista") // <<< CORREÇÃO FINAL: Define o nome exato da tabela.
 public class PerfilArtista extends PanacheEntityBase {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
