@@ -5,9 +5,16 @@ import io.quarkus.panache.common.Sort;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.MediaType; // Importação necessária
+import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.core.UriBuilder; // Importação necessária
+import jakarta.ws.rs.core.UriBuilder;
+
+import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
+import org.eclipse.microprofile.faulttolerance.Fallback;
+import org.eclipse.microprofile.faulttolerance.Timeout;
+import io.smallrye.faulttolerance.api.RateLimit;
+import java.time.temporal.ChronoUnit;
+
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -17,16 +24,16 @@ import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 
 import java.net.URI;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 @Path("/musicas")
-@Produces(MediaType.APPLICATION_JSON) // Padrão de retorno JSON para a classe toda
-@Consumes(MediaType.APPLICATION_JSON) // Padrão de consumo JSON para a classe toda
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
 public class MusicaResource {
 
-    // GET ALL
     @GET
     @Operation(
             summary = "Retorna todas as músicas (getAll)",
@@ -39,11 +46,19 @@ public class MusicaResource {
                     schema = @Schema(implementation = Musica.class, type = SchemaType.ARRAY)
             )
     )
+    @RateLimit(value = 10, window = 10, windowUnit = ChronoUnit.SECONDS)
+    @Timeout(value = 800, unit = ChronoUnit.MILLIS)
+    @CircuitBreaker(requestVolumeThreshold = 5, failureRatio = 0.6, delay = 5000)
+    @Fallback(fallbackMethod = "fallbackGetAll")
     public Response getAll(){
         return Response.ok(Musica.listAll()).build();
     }
 
-    // GET BY ID
+    public Response fallbackGetAll() {
+        List<Musica> listaVazia = Collections.emptyList();
+        return Response.ok(listaVazia).build();
+    }
+
     @GET
     @Path("{id}")
     @Operation(
@@ -54,13 +69,15 @@ public class MusicaResource {
             responseCode = "200",
             description = "Item retornado com sucesso",
             content = @Content(
-                    schema = @Schema(implementation = Musica.class) // CORRIGIDO: Retorna objeto único
+                    schema = @Schema(implementation = Musica.class)
             )
     )
     @APIResponse(
             responseCode = "404",
-            description = "Item não encontrado" // Removida a redundância de content/mediaType para 404
+            description = "Item não encontrado"
     )
+    @Timeout(value = 500, unit = ChronoUnit.MILLIS)
+    @Fallback(fallbackMethod = "fallbackGetById")
     public Response getById(
             @Parameter(description = "Id da música a ser pesquisada", required = true)
             @PathParam("id") long id){
@@ -71,7 +88,13 @@ public class MusicaResource {
         return Response.ok(entity).build();
     }
 
-    // SEARCH
+    public Response fallbackGetById(long id) {
+        return Response.status(Response.Status.SERVICE_UNAVAILABLE)
+                .entity("Serviço de busca indisponível para o ID: " + id + ". Tente novamente mais tarde.")
+                .type(MediaType.TEXT_PLAIN)
+                .build();
+    }
+
     @GET
     @Operation(
             summary = "Retorna as músicas conforme o sistema de pesquisa (search)",
@@ -81,7 +104,7 @@ public class MusicaResource {
             responseCode = "200",
             description = "Item retornado com sucesso",
             content = @Content(
-                    schema = @Schema(implementation = SearchMusicaResponse.class) // Assumindo a classe de resposta correta
+                    schema = @Schema(implementation = SearchMusicaResponse.class)
             )
     )
     @Path("/search")
@@ -134,7 +157,7 @@ public class MusicaResource {
 
         var response = new SearchMusicaResponse();
         response.Musicas = musicas;
-        response.TotalMusicas = (int) query.count(); // CORRIGIDO: Uso de query.count()
+        response.TotalMusicas = (int) query.count();
         response.TotalPages = query.pageCount();
         response.HasMore = effectivePage < query.pageCount() - 1;
         response.NextPage = response.HasMore ? "http://localhost:8080/musicas/search?q="+(q != null ? q : "")+"&page="+(effectivePage + 1) + (size > 0 ? "&size="+size : "") : "";
@@ -142,7 +165,6 @@ public class MusicaResource {
         return Response.ok(response).build();
     }
 
-    // POST (INSERT) - Corrigido para retornar 201 Created + ID
     @POST
     @Operation(
             summary = "Adiciona um registro à lista de músicas (insert)",
@@ -167,7 +189,6 @@ public class MusicaResource {
     @Transactional
     public Response insert(@Valid Musica musica){
 
-        // Resolver artista (pode ter apenas id)
         if(musica.artista != null && musica.artista.id != null){
             Artista a = Artista.findById(musica.artista.id);
             if(a == null){
@@ -179,7 +200,6 @@ public class MusicaResource {
             musica.artista = null;
         }
 
-        // Resolver gêneros musicais (se vierem com id)
         if(musica.generos != null && !musica.generos.isEmpty()){
             Set<GeneroMusical> resolved = new HashSet<>();
             for(GeneroMusical g : musica.generos){
@@ -200,7 +220,6 @@ public class MusicaResource {
 
         Musica.persist(musica);
 
-        // Retorna 201 Created e o objeto completo (com ID)
         URI location = UriBuilder.fromResource(MusicaResource.class).path("{id}").build(musica.id);
         return Response
                 .created(location)
@@ -208,7 +227,6 @@ public class MusicaResource {
                 .build();
     }
 
-    // DELETE
     @DELETE
     @Operation(
             summary = "Remove um registro da lista de músicas (delete)",
@@ -230,7 +248,6 @@ public class MusicaResource {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
-        // Remove associações ManyToMany antes de deletar
         entity.generos.clear();
         entity.persist();
 
@@ -238,7 +255,6 @@ public class MusicaResource {
         return Response.noContent().build();
     }
 
-    // PUT (UPDATE)
     @PUT
     @Operation(
             summary = "Altera um registro da lista de músicas (update)",
@@ -254,7 +270,7 @@ public class MusicaResource {
             responseCode = "200",
             description = "Item editado com sucesso",
             content = @Content(
-                    schema = @Schema(implementation = Musica.class) // CORRIGIDO: Retorna objeto único
+                    schema = @Schema(implementation = Musica.class)
             )
     )
     @APIResponse(
@@ -274,7 +290,6 @@ public class MusicaResource {
         entity.nota = newMusica.nota;
         entity.duracaoSegundos = newMusica.duracaoSegundos;
 
-        // Resolver artista
         if(newMusica.artista != null && newMusica.artista.id != null){
             Artista a = Artista.findById(newMusica.artista.id);
             if(a == null){
@@ -286,7 +301,6 @@ public class MusicaResource {
             entity.artista = null;
         }
 
-        // Resolver gêneros
         if(newMusica.generos != null){
             Set<GeneroMusical> resolved = new HashSet<>();
             for(GeneroMusical g : newMusica.generos){

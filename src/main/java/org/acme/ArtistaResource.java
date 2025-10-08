@@ -7,6 +7,13 @@ import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+
+import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
+import org.eclipse.microprofile.faulttolerance.Fallback;
+import org.eclipse.microprofile.faulttolerance.Timeout;
+import java.time.temporal.ChronoUnit;
+import io.smallrye.faulttolerance.api.RateLimit;
+
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -16,15 +23,15 @@ import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 
 import java.net.URI;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 @Path("/artistas")
-@Produces(MediaType.APPLICATION_JSON) // Retorno padrão JSON para todos os métodos
-@Consumes(MediaType.APPLICATION_JSON) // Consumo padrão JSON para POST/PUT
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
 public class ArtistaResource {
 
-    // Artista.listAll() está correto e retorna uma lista
     @GET
     @Operation(
             summary = "Retorna todos os artistas (getAll)",
@@ -37,11 +44,19 @@ public class ArtistaResource {
                     schema = @Schema(implementation = Artista.class, type = SchemaType.ARRAY)
             )
     )
+    @RateLimit(value = 10, window = 10, windowUnit = ChronoUnit.SECONDS)
+    @Timeout(value = 800, unit = ChronoUnit.MILLIS)
+    @CircuitBreaker(requestVolumeThreshold = 5, failureRatio = 0.6, delay = 5000)
+    @Fallback(fallbackMethod = "fallbackGetAll")
     public Response getAll(){
         return Response.ok(Artista.listAll()).build();
     }
 
-    // Artista.findById(id) retorna um único artista
+    public Response fallbackGetAll() {
+        List<Artista> listaVazia = Collections.emptyList();
+        return Response.ok(listaVazia).build();
+    }
+
     @GET
     @Path("{id}")
     @Operation(
@@ -52,7 +67,6 @@ public class ArtistaResource {
             responseCode = "200",
             description = "Item retornado com sucesso",
             content = @Content(
-                    // CORRIGIDO: Removida a menção a 'type = SchemaType.ARRAY'
                     schema = @Schema(implementation = Artista.class)
             )
     )
@@ -60,18 +74,25 @@ public class ArtistaResource {
             responseCode = "404",
             description = "Item não encontrado"
     )
+    @Timeout(value = 500, unit = ChronoUnit.MILLIS)
+    @Fallback(fallbackMethod = "fallbackGetById")
     public Response getById(
             @Parameter(description = "Id do artista a ser pesquisado", required = true)
             @PathParam("id") long id){
         Artista entity = Artista.findById(id);
         if(entity == null){
-            // Retorna NOT_FOUND sem corpo, por isso não precisa de 'content' no 404
             return Response.status(Response.Status.NOT_FOUND).build();
         }
         return Response.ok(entity).build();
     }
 
-    // O método Search é complexo e está muito bem feito!
+    public Response fallbackGetById(long id) {
+        return Response.status(Response.Status.SERVICE_UNAVAILABLE)
+                .entity("Serviço de busca indisponível para o ID: " + id + ". Tente novamente mais tarde.")
+                .type(MediaType.TEXT_PLAIN)
+                .build();
+    }
+
     @GET
     @Operation(
             summary = "Retorna os artistas conforme o sistema de pesquisa (search)",
@@ -81,7 +102,7 @@ public class ArtistaResource {
             responseCode = "200",
             description = "Item retornado com sucesso",
             content = @Content(
-                    schema = @Schema(implementation = SearchArtistaResponse.class) // Assumindo que SearchArtistaResponse é o schema correto
+                    schema = @Schema(implementation = SearchArtistaResponse.class)
             )
     )
     @Path("/search")
@@ -120,10 +141,9 @@ public class ArtistaResource {
 
         List<Artista> artistas = query.page(effectivePage, size).list();
 
-        // O ArtistaResource deve ter acesso à classe SearchArtistaResponse
         var response = new SearchArtistaResponse();
         response.Artistas = artistas;
-        response.TotalArtistas = (int) query.count(); // Melhor usar count() para o total, não query.list().size()
+        response.TotalArtistas = (int) query.count();
         response.TotalPages = query.pageCount();
         response.HasMore = effectivePage < query.pageCount() - 1;
         response.NextPage = response.HasMore ? "http://localhost:8080/artistas/search?q="+(q != null ? q : "")+"&page="+(effectivePage + 1) + (size > 0 ? "&size="+size : "") : "";
@@ -131,7 +151,6 @@ public class ArtistaResource {
         return Response.ok(response).build();
     }
 
-    // Método POST corrigido para retornar o objeto criado e a URI (Melhor Prática REST)
     @POST
     @Operation(
             summary = "Adiciona um registro à lista de artistas (insert)",
@@ -157,7 +176,6 @@ public class ArtistaResource {
     public Response insert(@Valid Artista artista){
         Artista.persist(artista);
 
-        // CORRIGIDO: Retorna o objeto completo com o ID gerado e o Location Header
         URI location = URI.create("/artistas/" + artista.id);
         return Response
                 .created(location)
@@ -193,7 +211,6 @@ public class ArtistaResource {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
-        // Assumindo que a classe Musica existe e tem o método count.
         long musicasVinculadas = Musica.count("artista.id = ?1", id);
         if(musicasVinculadas > 0){
             return Response.status(Response.Status.CONFLICT)
@@ -220,7 +237,6 @@ public class ArtistaResource {
             responseCode = "200",
             description = "Item editado com sucesso",
             content = @Content(
-                    // CORRIGIDO: Removida a menção a 'type = SchemaType.ARRAY'
                     schema = @Schema(implementation = Artista.class)
             )
     )
@@ -236,23 +252,19 @@ public class ArtistaResource {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
-        // Atualização dos campos (persistência é automática devido ao @Transactional)
         entity.nomeArtistico = newArtista.nomeArtistico;
         entity.nomeCompleto = newArtista.nomeCompleto;
         entity.dataDeEstreia = newArtista.dataDeEstreia;
         entity.paisDeOrigem = newArtista.paisDeOrigem;
 
-        // Atualizar perfil
         if(newArtista.perfil != null){
             if(entity.perfil == null){
-                // Assumindo que PerfilArtista existe e é uma Entidade ou Embeddable
                 entity.perfil = new PerfilArtista();
             }
             entity.perfil.descricaoCarreira = newArtista.perfil.descricaoCarreira;
             entity.perfil.estiloMusicalPrincipal = newArtista.perfil.estiloMusicalPrincipal;
             entity.perfil.premiosEReconhecimentos = newArtista.perfil.premiosEReconhecimentos;
         } else {
-            // Se não vier perfil no request, limpa o perfil existente
             entity.perfil = null;
         }
 

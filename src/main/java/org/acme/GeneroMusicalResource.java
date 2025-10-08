@@ -8,6 +8,13 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
+
+import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
+import org.eclipse.microprofile.faulttolerance.Fallback;
+import org.eclipse.microprofile.faulttolerance.Timeout;
+import io.smallrye.faulttolerance.api.RateLimit;
+import java.time.temporal.ChronoUnit;
+
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -17,15 +24,15 @@ import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 
 import java.net.URI;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 @Path("/generos-musicais")
-@Produces(MediaType.APPLICATION_JSON) // Padrão de retorno JSON para a classe toda
-@Consumes(MediaType.APPLICATION_JSON) // Padrão de consumo JSON para a classe toda
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
 public class GeneroMusicalResource {
 
-    // GET ALL
     @GET
     @Operation(
             summary = "Retorna todos os gêneros musicais (getAll)",
@@ -38,11 +45,19 @@ public class GeneroMusicalResource {
                     schema = @Schema(implementation = GeneroMusical.class, type = SchemaType.ARRAY)
             )
     )
+    @RateLimit(value = 10, window = 10, windowUnit = ChronoUnit.SECONDS)
+    @Timeout(value = 800, unit = ChronoUnit.MILLIS)
+    @CircuitBreaker(requestVolumeThreshold = 5, failureRatio = 0.6, delay = 5000)
+    @Fallback(fallbackMethod = "fallbackGetAll")
     public Response getAll(){
         return Response.ok(GeneroMusical.listAll()).build();
     }
 
-    // GET BY ID
+    public Response fallbackGetAll() {
+        List<GeneroMusical> listaVazia = Collections.emptyList();
+        return Response.ok(listaVazia).build();
+    }
+
     @GET
     @Path("{id}")
     @Operation(
@@ -53,13 +68,15 @@ public class GeneroMusicalResource {
             responseCode = "200",
             description = "Item retornado com sucesso",
             content = @Content(
-                    schema = @Schema(implementation = GeneroMusical.class) // CORRIGIDO: Retorna um objeto, não um Array
+                    schema = @Schema(implementation = GeneroMusical.class)
             )
     )
     @APIResponse(
             responseCode = "404",
             description = "Item não encontrado"
     )
+    @Timeout(value = 500, unit = ChronoUnit.MILLIS)
+    @Fallback(fallbackMethod = "fallbackGetById")
     public Response getById(
             @Parameter(description = "Id do gênero musical a ser pesquisado", required = true)
             @PathParam("id") long id){
@@ -70,7 +87,13 @@ public class GeneroMusicalResource {
         return Response.ok(entity).build();
     }
 
-    // SEARCH
+    public Response fallbackGetById(long id) {
+        return Response.status(Response.Status.SERVICE_UNAVAILABLE)
+                .entity("Serviço de busca indisponível para o ID: " + id + ". Tente novamente mais tarde.")
+                .type(MediaType.TEXT_PLAIN)
+                .build();
+    }
+
     @GET
     @Operation(
             summary = "Retorna os gêneros musicais conforme o sistema de pesquisa (search)",
@@ -121,7 +144,7 @@ public class GeneroMusicalResource {
 
         var response = new SearchGeneroMusicalResponse();
         response.GenerosMusicais = generos;
-        response.TotalGenerosMusicais = (int) query.count(); // Uso de count() para eficiência
+        response.TotalGenerosMusicais = (int) query.count();
         response.TotalPages = query.pageCount();
         response.HasMore = effectivePage < query.pageCount() - 1;
         response.NextPage = response.HasMore ? "http://localhost:8080/generos-musicais/search?q="+(q != null ? q : "")+"&page="+(effectivePage + 1) + (size > 0 ? "&size="+size : "") : "";
@@ -152,11 +175,8 @@ public class GeneroMusicalResource {
     )
     @Transactional
     public Response insert(@Valid GeneroMusical genero){
-        // A persistência é bem-sucedida AGORA porque o cliente (Swagger/Curl)
-        // deve omitir o ID, graças ao @Schema(readOnly = true) na Entidade.
         GeneroMusical.persist(genero);
 
-        // Esta parte garante que o NOVO ID apareça no CURL de resposta (Corpo e Location Header)
         URI location = UriBuilder.fromResource(GeneroMusicalResource.class).path("{id}").build(genero.id);
         return Response
                 .created(location)
@@ -164,7 +184,6 @@ public class GeneroMusicalResource {
                 .build();
     }
 
-    // DELETE
     @DELETE
     @Operation(
             summary = "Remove um registro da lista de gêneros musicais (delete)",
@@ -201,7 +220,6 @@ public class GeneroMusicalResource {
         return Response.noContent().build();
     }
 
-    // PUT (UPDATE)
     @PUT
     @Operation(
             summary = "Altera um registro da lista de gêneros musicais (update)",
@@ -217,7 +235,7 @@ public class GeneroMusicalResource {
             responseCode = "200",
             description = "Item editado com sucesso",
             content = @Content(
-                    schema = @Schema(implementation = GeneroMusical.class) // CORRIGIDO: Não é um Array
+                    schema = @Schema(implementation = GeneroMusical.class)
             )
     )
     @APIResponse(
