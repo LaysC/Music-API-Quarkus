@@ -173,7 +173,13 @@ public class ArtistaResource {
             description = "Bad Request"
     )
     @Transactional
-    public Response insert(@Valid Artista artista){
+    public Response insert(@Valid Artista artista, @HeaderParam("Idempotency-Key") String idempotencyKey){
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity("O cabeçalho Idempotency-Key é obrigatório para esta operação.")
+                    .build();
+        }
+
         Artista.persist(artista);
 
         URI location = URI.create("/artistas/" + artista.id);

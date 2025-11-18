@@ -174,7 +174,13 @@ public class GeneroMusicalResource {
             description = "Bad Request"
     )
     @Transactional
-    public Response insert(@Valid GeneroMusical genero){
+    public Response insert(@Valid GeneroMusical genero, @HeaderParam("Idempotency-Key") String idempotencyKey){
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity("O cabeçalho Idempotency-Key é obrigatório para esta operação.")
+                    .build();
+        }
+
         GeneroMusical.persist(genero);
 
         URI location = UriBuilder.fromResource(GeneroMusicalResource.class).path("{id}").build(genero.id);

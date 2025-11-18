@@ -187,7 +187,12 @@ public class MusicaResource {
             description = "Bad Request"
     )
     @Transactional
-    public Response insert(@Valid Musica musica){
+    public Response insert(@Valid Musica musica, @HeaderParam("Idempotency-Key") String idempotencyKey){
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity("O cabeçalho Idempotency-Key é obrigatório para esta operação.")
+                    .build();
+        }
 
         if(musica.artista != null && musica.artista.id != null){
             Artista a = Artista.findById(musica.artista.id);
