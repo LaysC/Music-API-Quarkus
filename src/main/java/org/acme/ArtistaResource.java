@@ -7,6 +7,9 @@ import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriBuilder; // Importante para o Location correto
+
+import org.acme.idempotency.Idempotent; // <--- Import da anotação
 
 import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
 import org.eclipse.microprofile.faulttolerance.Fallback;
@@ -27,7 +30,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-@Path("/artistas")
+@Path("/api/v1/artistas")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class ArtistaResource {
@@ -146,7 +149,8 @@ public class ArtistaResource {
         response.TotalArtistas = (int) query.count();
         response.TotalPages = query.pageCount();
         response.HasMore = effectivePage < query.pageCount() - 1;
-        response.NextPage = response.HasMore ? "http://localhost:8080/artistas/search?q="+(q != null ? q : "")+"&page="+(effectivePage + 1) + (size > 0 ? "&size="+size : "") : "";
+
+        response.NextPage = response.HasMore ? "http://localhost:8080/api/v1/artistas/search?q="+(q != null ? q : "")+"&page="+(effectivePage + 1) + (size > 0 ? "&size="+size : "") : "";
 
         return Response.ok(response).build();
     }
@@ -173,16 +177,14 @@ public class ArtistaResource {
             description = "Bad Request"
     )
     @Transactional
-    public Response insert(@Valid Artista artista, @HeaderParam("Idempotency-Key") String idempotencyKey){
-        if (idempotencyKey == null || idempotencyKey.isBlank()) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("O cabeçalho Idempotency-Key é obrigatório para esta operação.")
-                    .build();
-        }
+    @Idempotent
+    public Response insert(@Valid Artista artista){
+
 
         Artista.persist(artista);
 
-        URI location = URI.create("/artistas/" + artista.id);
+        URI location = UriBuilder.fromResource(ArtistaResource.class).path("{id}").build(artista.id);
+
         return Response
                 .created(location)
                 .entity(artista)

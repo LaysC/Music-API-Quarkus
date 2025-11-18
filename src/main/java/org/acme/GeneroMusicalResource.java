@@ -9,6 +9,8 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
 
+import org.acme.idempotency.Idempotent; // <--- Import da anotação
+
 import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
 import org.eclipse.microprofile.faulttolerance.Fallback;
 import org.eclipse.microprofile.faulttolerance.Timeout;
@@ -28,7 +30,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-@Path("/generos-musicais")
+@Path("/api/v1/generos-musicais")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class GeneroMusicalResource {
@@ -147,7 +149,8 @@ public class GeneroMusicalResource {
         response.TotalGenerosMusicais = (int) query.count();
         response.TotalPages = query.pageCount();
         response.HasMore = effectivePage < query.pageCount() - 1;
-        response.NextPage = response.HasMore ? "http://localhost:8080/generos-musicais/search?q="+(q != null ? q : "")+"&page="+(effectivePage + 1) + (size > 0 ? "&size="+size : "") : "";
+
+        response.NextPage = response.HasMore ? "http://localhost:8080/api/v1/generos-musicais/search?q="+(q != null ? q : "")+"&page="+(effectivePage + 1) + (size > 0 ? "&size="+size : "") : "";
 
         return Response.ok(response).build();
     }
@@ -174,12 +177,9 @@ public class GeneroMusicalResource {
             description = "Bad Request"
     )
     @Transactional
-    public Response insert(@Valid GeneroMusical genero, @HeaderParam("Idempotency-Key") String idempotencyKey){
-        if (idempotencyKey == null || idempotencyKey.isBlank()) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("O cabeçalho Idempotency-Key é obrigatório para esta operação.")
-                    .build();
-        }
+    @Idempotent
+    public Response insert(@Valid GeneroMusical genero){
+
 
         GeneroMusical.persist(genero);
 

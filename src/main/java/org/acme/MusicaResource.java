@@ -9,6 +9,8 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
 
+import org.acme.idempotency.Idempotent;
+
 import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
 import org.eclipse.microprofile.faulttolerance.Fallback;
 import org.eclipse.microprofile.faulttolerance.Timeout;
@@ -29,7 +31,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-@Path("/musicas")
+@Path("/api/v1/musicas") // <--- ALTERADO: Versionamento aplicado
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class MusicaResource {
@@ -160,7 +162,9 @@ public class MusicaResource {
         response.TotalMusicas = (int) query.count();
         response.TotalPages = query.pageCount();
         response.HasMore = effectivePage < query.pageCount() - 1;
-        response.NextPage = response.HasMore ? "http://localhost:8080/musicas/search?q="+(q != null ? q : "")+"&page="+(effectivePage + 1) + (size > 0 ? "&size="+size : "") : "";
+
+        // <--- ATUALIZADO: Link agora aponta para /api/v1/musicas
+        response.NextPage = response.HasMore ? "http://localhost:8080/api/v1/musicas/search?q="+(q != null ? q : "")+"&page="+(effectivePage + 1) + (size > 0 ? "&size="+size : "") : "";
 
         return Response.ok(response).build();
     }
@@ -187,12 +191,8 @@ public class MusicaResource {
             description = "Bad Request"
     )
     @Transactional
-    public Response insert(@Valid Musica musica, @HeaderParam("Idempotency-Key") String idempotencyKey){
-        if (idempotencyKey == null || idempotencyKey.isBlank()) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("O cabeçalho Idempotency-Key é obrigatório para esta operação.")
-                    .build();
-        }
+    @Idempotent
+    public Response insert(@Valid Musica musica){
 
         if(musica.artista != null && musica.artista.id != null){
             Artista a = Artista.findById(musica.artista.id);
