@@ -13,8 +13,7 @@ import jakarta.ws.rs.container.ContainerResponseFilter;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.Provider;
 import java.io.IOException;
-
-import com.fasterxml.jackson.databind.ObjectMapper; // 👈 Necessário para Serialização/Deserialização
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Provider
 @ApplicationScoped
@@ -30,7 +29,7 @@ public class IdempotencyFilter implements ContainerRequestFilter, ContainerRespo
     Cache cache;
 
     @Inject
-    ObjectMapper objectMapper; // 👈 Injeção do Jackson
+    ObjectMapper objectMapper;
 
     private static class IdempotentContext {
         private final String cacheKey;
@@ -45,13 +44,10 @@ public class IdempotencyFilter implements ContainerRequestFilter, ContainerRespo
         public long getExpireAfter() { return expireAfter; }
     }
 
-    /**
-     * O corpo é armazenado como String para evitar problemas de serialização do Hibernate/JAX-RS.
-     */
     public static class IdempotencyRecord {
         private int status;
-        private String bodyJson; // 👈 Armazenamos o JSON como String
-        private int contentLength; // Para retornar o Content-Length correto (opcional)
+        private String bodyJson;
+        private int contentLength;
 
         public IdempotencyRecord() {}
 
@@ -71,7 +67,6 @@ public class IdempotencyFilter implements ContainerRequestFilter, ContainerRespo
 
     private String createCacheKey(ContainerRequestContext requestContext, String idempotencyKey) {
         String path = requestContext.getUriInfo().getPath();
-        // A chave só usa o método e o path relativo
         return requestContext.getMethod() + ":" + path + ":" + idempotencyKey;
     }
 
@@ -89,37 +84,43 @@ public class IdempotencyFilter implements ContainerRequestFilter, ContainerRespo
         }
 
         String cacheKey = createCacheKey(requestContext, idempotencyKey);
+        System.out.println("IDEMPOTÊNCIA DEBUG: REQUISIÇÃO. Chave gerada: " + cacheKey);
 
         try {
-            // Tenta obter o registro do cache.
             IdempotencyRecord record = (IdempotencyRecord) cache.get(cacheKey, k -> null)
                     .await().indefinitely();
 
             if (record != null) {
-                // Se o registro for encontrado (chave válida e não expirada), aborta a requisição
+                // LOG 2: CHAVE ENCONTRADA - O ideal para a 2ª chamada
+                System.out.println("IDEMPOTÊNCIA DEBUG: Cache HIT. Retornando resposta do cache.");
 
                 Response.ResponseBuilder responseBuilder = Response
                         .status(record.getStatus())
-                        // Retorna a String JSON salva como entidade
                         .entity(record.getBodyJson())
                         .header("Content-Type", "application/json");
 
-                // Retorna o cabeçalho Location para 201 Created
+                // Tenta reconstruir o cabeçalho Location para 201 Created
                 if (record.getStatus() == 201) {
-                    String location = requestContext.getUriInfo().getAbsolutePath().toString() + "/" + record.getBodyJson().substring(record.getBodyJson().indexOf("\"id\":") + 5, record.getBodyJson().indexOf(','));
+                    // Busca o ID do corpo JSON (funciona se for um JSON simples)
+                    String idValue = record.getBodyJson().substring(record.getBodyJson().indexOf("\"id\":") + 5);
+                    idValue = idValue.substring(0, idValue.indexOf(',')).trim();
+
+                    String location = requestContext.getUriInfo().getAbsolutePath().toString() + "/" + idValue;
                     responseBuilder.header("Location", location);
                 }
 
                 requestContext.abortWith(responseBuilder.build());
                 return;
+            } else {
+                // LOG 3: CHAVE NÃO ENCONTRADA - O ideal para a 1ª chamada
+                System.out.println("IDEMPOTÊNCIA DEBUG: Cache MISS. Chave não encontrada. Permite persistência.");
             }
 
             requestContext.setProperty(IDEMPOTENT_CONTEXT_PROPERTY,
                     new IdempotentContext(cacheKey, DEFAULT_EXPIRE_AFTER_SECONDS));
 
         } catch (Exception e) {
-            // Em caso de erro de cache/serialização na leitura, o erro é impresso, mas a requisição é permitida
-            System.err.println("Erro durante verificação de Idempotência. Permite persistência: " + e.getMessage());
+            System.err.println("IDEMPOTÊNCIA ERROR: Erro no filtro de requisição: " + e.getMessage());
         }
     }
 
@@ -134,22 +135,23 @@ public class IdempotencyFilter implements ContainerRequestFilter, ContainerRespo
             if (responseContext.getStatus() >= 200 && responseContext.getStatus() < 300 && responseContext.hasEntity()) {
 
                 try {
-                    // 👈 1. Serializa o corpo da entidade para JSON String
+                    // 1. Serializa o corpo da entidade para JSON String
                     String bodyJson = objectMapper.writeValueAsString(responseContext.getEntity());
 
-                    // 👈 2. Cria o registro com a String
+                    // 2. Cria o registro com a String
                     IdempotencyRecord record = new IdempotencyRecord(
                             responseContext.getStatus(),
                             bodyJson,
                             bodyJson.length()
                     );
 
-                    // 3. Grava o resultado para futuras chamadas
                     cache.get(context.getCacheKey(), k -> record)
                             .await().indefinitely();
 
+                    System.out.println("IDEMPOTÊNCIA DEBUG: RESPOSTA. Resposta salva no cache para chave: " + context.getCacheKey());
+
                 } catch (Exception e) {
-                    System.err.println("Erro ao salvar a resposta idempotente no cache: " + e.getMessage());
+                    System.err.println("IDEMPOTÊNCIA ERROR: Erro ao salvar a resposta no cache: " + e.getMessage());
                 }
             }
         }
