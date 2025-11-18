@@ -1,120 +1,170 @@
-/* ===== Tema Escuro Robusto (V.6 - Destaque de Botões) ===== */
+/* * Modern Dark Theme para Swagger UI
+ * Adicione este arquivo aos recursos estáticos da sua aplicação
+ */
 
-/* Estilos Gerais do Corpo e Fundo */
-body {
-    background-color: #1a1a1a !important;
-    color: #f8f9fa;
-    font-family: 'Inter', sans-serif;
-    font-size: 15px;
+:root {
+  --bg-primary: #1b1b1b;
+  --bg-secondary: #242424;
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --accent-color: #61afe6;
+  --border-color: #333;
+  --success-color: #49cc90;
+  --method-get: #61afe6;
+  --method-post: #49cc90;
+  --method-put: #fca130;
+  --method-delete: #f93e3e;
 }
 
-/* Fundo das Seções (Tags e Modelos) */
-.swagger-ui .opblock-tag-section,
-.swagger-ui .model-box {
-    background-color: #242424 !important;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+body, .swagger-ui {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+  font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
 }
 
-/* Cabeçalho Superior */
-.topbar {
-    background-color: #212121 !important;
-    border-bottom: 2px solid #6c757d;
+/* Topbar (Cabeçalho) */
+.swagger-ui .topbar {
+  background-color: var(--bg-secondary) !important;
+  border-bottom: 1px solid var(--border-color);
 }
 
-/* Tags de Operação (Título do Endpoint) */
-.opblock-tag {
-    background-color: #282828 !important;
-    border-left: 5px solid #007bff;
-    color: #f8f9fa !important;
+.swagger-ui .topbar .download-url-wrapper .select-label select {
+  border: 1px solid var(--border-color) !important;
+  background: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
 }
 
-/* --- Cores dos Métodos HTTP --- */
-.opblock.opblock-get .opblock-summary-method { background-color: #28a745; }
-.opblock.opblock-post .opblock-summary-method { background-color: #ffc107; }
-.opblock.opblock-put .opblock-summary-method { background-color: #fd7e14; }
-.opblock.opblock-delete .opblock-summary-method { background-color: #dc3545; }
-
-/* Define a cor de todos os textos */
-.swagger-ui *, .swagger-ui .parameter__name, .swagger-ui .opblock-body, .swagger-ui .opblock-summary-path, .swagger-ui .response-col_description {
-    color: #f8f9fa !important;
+/* Informações Gerais */
+.swagger-ui .info .title {
+  color: var(--text-primary) !important;
 }
 
-/* --- Estilos de Botões de Ação (Destaque Apenas para Ações) --- */
+.swagger-ui .info p, 
+.swagger-ui .info li, 
+.swagger-ui .info table {
+  color: var(--text-secondary) !important;
+}
 
-/* Padrão para Botões (Neutro) */
+.swagger-ui .scheme-container {
+  background: var(--bg-secondary) !important;
+  box-shadow: none !important;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* Blocos de Operações (GET, POST, etc) */
+.swagger-ui .opblock {
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+
+.swagger-ui .opblock .opblock-summary {
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+.swagger-ui .opblock .opblock-summary-operation-id,
+.swagger-ui .opblock .opblock-summary-path,
+.swagger-ui .opblock .opblock-summary-path__deprecated {
+  color: var(--text-primary) !important;
+}
+
+.swagger-ui .opblock .opblock-summary-description {
+  color: var(--text-secondary) !important;
+}
+
+/* Cores específicas por método */
+.swagger-ui .opblock.opblock-post {
+  border-color: var(--method-post) !important;
+  background: rgba(73, 204, 144, 0.1) !important;
+}
+.swagger-ui .opblock.opblock-get {
+  border-color: var(--method-get) !important;
+  background: rgba(97, 175, 230, 0.1) !important;
+}
+.swagger-ui .opblock.opblock-put {
+  border-color: var(--method-put) !important;
+  background: rgba(252, 161, 48, 0.1) !important;
+}
+.swagger-ui .opblock.opblock-delete {
+  border-color: var(--method-delete) !important;
+  background: rgba(249, 62, 62, 0.1) !important;
+}
+
+/* Tabelas e Modelos */
 .swagger-ui .btn {
-    background-color: #444444 !important;
-    color: #f8f9fa !important;
-    border-radius: 4px;
-    border: none !important;
+  box-shadow: none !important;
+  border-radius: 4px !important;
 }
 
-/* Destaque 1: Botão "Try it out" */
-.opblock-tag .try-out__btn {
-    background-color: #007bff !important; /* Azul Primário */
-    color: #fff !important;
+.swagger-ui .btn.execute {
+  background-color: var(--accent-color) !important;
+  border-color: var(--accent-color) !important;
+  color: #fff !important;
+  width: 100%;
+  font-weight: bold;
 }
 
-/* Destaque 2: Botão "Execute" */
-.execute-wrapper .btn.execute {
-    background-color: #28a745 !important; /* Verde de Sucesso */
-    color: #fff !important;
+.swagger-ui section.models {
+  border: 1px solid var(--border-color) !important;
+  background: var(--bg-secondary) !important;
+  border-radius: 8px;
 }
 
-/* Destaque 3: Botão "Clear" */
-.opblock-tag .clear-btn {
-    background-color: #dc3545 !important; /* Vermelho de Perigo */
-    color: #fff !important;
+.swagger-ui section.models h4 {
+  color: var(--text-primary) !important;
 }
 
-/* Destaque 4: Botões "Cancel" e "Reset" */
-.swagger-ui .btn.cancel,
-.swagger-ui .btn.reset {
-    background-color: #6c757d !important; /* Cinza/Neutro Secundário */
-    color: #fff !important;
+.swagger-ui .model-box {
+  background-color: transparent !important;
 }
 
-
-/* --- Estilos de Input e Editor de Código (Layout Corrigido) --- */
-
-/* Inputs de Texto Simples */
-input[type="text"], textarea, select, .swagger-ui .try-out input[type="text"],
-.swagger-ui .parameters-col_description input[type="text"] {
-    background-color: #333333 !important;
-    color: #f8f9fa !important;
-    border: 1px solid #555555 !important;
-    padding: 8px !important;
-    border-radius: 4px;
-    opacity: 1;
+.swagger-ui .model {
+  color: var(--text-secondary) !important;
 }
 
-/* Editores de Código (Request Body, Example Value, Schema) */
-.swagger-ui .editor-content, .swagger-ui .CodeMirror, .swagger-ui .CodeMirror-scroll,
-.swagger-ui .cm-editor, .swagger-ui .json-schema-container {
-    background-color: #1e1e1e !important;
-    color: #f8f9fa !important;
-    border: none !important;
-    line-height: 1.5 !important;
-    min-height: 20px !important;
+.swagger-ui .model-title {
+  color: var(--text-primary) !important;
 }
 
-/* Garante que o texto de sintaxe seja branco */
-.swagger-ui .hljs, .swagger-ui .hljs-attr, .swagger-ui .hljs-string, .swagger-ui .CodeMirror-line span {
-    color: #f8f9fa !important;
+/* Inputs e Formulários */
+.swagger-ui input[type=text], 
+.swagger-ui input[type=password], 
+.swagger-ui input[type=search], 
+.swagger-ui textarea,
+.swagger-ui select {
+  background-color: var(--bg-primary) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-primary) !important;
+  border-radius: 4px !important;
 }
 
-/* Layout para evitar corte de texto */
-.swagger-ui .CodeMirror-scroll {
-    overflow: auto !important; max-height: 400px !important;
+.swagger-ui .parameter__name {
+  color: var(--text-primary) !important;
 }
 
-/* SOLUÇÃO FINAL PARA O CORTE: Altera o elemento de linha interna */
-.swagger-ui .CodeMirror .CodeMirror-line {
-    line-height: 1.5 !important;
-    min-height: 20px !important;
-    margin: 0 !important;
-    padding: 0 !important;
+.swagger-ui .parameter__type {
+  color: var(--text-secondary) !important;
 }
 
-input[type="text"]:focus, textarea:focus, .swagger-ui
+/* Respostas */
+.swagger-ui .responses-inner h4,
+.swagger-ui .responses-inner h5 {
+  color: var(--text-primary) !important;
+}
+
+.swagger-ui table thead tr td, 
+.swagger-ui table thead tr th {
+  color: var(--text-primary) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+.swagger-ui .response-col_status {
+  color: var(--text-secondary) !important;
+}
+
+/* Json Highlight */
+.swagger-ui .microlight {
+  background-color: #000 !important;
+  border-radius: 4px;
+}

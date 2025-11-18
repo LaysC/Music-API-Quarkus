@@ -22,7 +22,6 @@ public class PerfilArtista extends PanacheEntityBase {
 
     public String premiosEReconhecimentos;
 
-    // One-to-One: um perfil pertence a um artista
     @OneToOne(mappedBy = "perfil", fetch = FetchType.LAZY)
     @JsonIgnore
     public Artista artista;

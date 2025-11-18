@@ -9,7 +9,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
 
-import org.acme.idempotency.Idempotent; // <--- Import da anotação
+import org.acme.idempotency.Idempotent;
 
 import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
 import org.eclipse.microprofile.faulttolerance.Fallback;
@@ -18,6 +18,7 @@ import io.smallrye.faulttolerance.api.RateLimit;
 import java.time.temporal.ChronoUnit;
 
 import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -160,6 +161,12 @@ public class GeneroMusicalResource {
             summary = "Adiciona um registro à lista de gêneros musicais (insert)",
             description = "Adiciona um item à lista de gêneros musicais por meio de POST e request body JSON. O ID é gerado e retornado na resposta."
     )
+    @Parameter(
+            name = "X-Idempotency-Key",
+            in = ParameterIn.HEADER,
+            required = true,
+            description = "Chave única para evitar duplicação. Se enviar a mesma chave, não grava de novo."
+    )
     @RequestBody(
             required = true,
             content = @Content(
@@ -179,7 +186,6 @@ public class GeneroMusicalResource {
     @Transactional
     @Idempotent
     public Response insert(@Valid GeneroMusical genero){
-
 
         GeneroMusical.persist(genero);
 

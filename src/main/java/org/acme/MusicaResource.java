@@ -18,6 +18,7 @@ import io.smallrye.faulttolerance.api.RateLimit;
 import java.time.temporal.ChronoUnit;
 
 import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -31,7 +32,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-@Path("/api/v1/musicas") // <--- ALTERADO: Versionamento aplicado
+@Path("/api/v1/musicas")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class MusicaResource {
@@ -163,7 +164,6 @@ public class MusicaResource {
         response.TotalPages = query.pageCount();
         response.HasMore = effectivePage < query.pageCount() - 1;
 
-        // <--- ATUALIZADO: Link agora aponta para /api/v1/musicas
         response.NextPage = response.HasMore ? "http://localhost:8080/api/v1/musicas/search?q="+(q != null ? q : "")+"&page="+(effectivePage + 1) + (size > 0 ? "&size="+size : "") : "";
 
         return Response.ok(response).build();
@@ -173,6 +173,12 @@ public class MusicaResource {
     @Operation(
             summary = "Adiciona um registro à lista de músicas (insert)",
             description = "Adiciona um item à lista de músicas por meio de POST e request body JSON. O ID é gerado e retornado na resposta."
+    )
+    @Parameter(
+            name = "X-Idempotency-Key",
+            in = ParameterIn.HEADER,
+            required = true,
+            description = "Chave única para evitar duplicação. Se enviar a mesma chave, não grava de novo."
     )
     @RequestBody(
             required = true,

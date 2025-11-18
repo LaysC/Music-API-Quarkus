@@ -3,7 +3,7 @@ package org.acme;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
-import org.eclipse.microprofile.openapi.annotations.media.Schema; // Importação necessária
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -12,7 +12,6 @@ public class Musica extends PanacheEntityBase {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    // CRÍTICO PARA O SWAGGER: Oculta o ID no Request Body (POST/PUT)
     @Schema(readOnly = true, example = "1")
     public Long id;
 
@@ -34,12 +33,10 @@ public class Musica extends PanacheEntityBase {
     @Min(value = 0, message = "Duração não pode ser negativa")
     public int duracaoSegundos;
 
-    // Many-to-One: várias músicas para um artista
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "artista_id")
     public Artista artista;
 
-    // Many-to-Many: músicas - gêneros musicais
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "musica_genero",

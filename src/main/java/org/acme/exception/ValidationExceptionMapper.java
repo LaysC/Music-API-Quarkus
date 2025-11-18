@@ -21,7 +21,7 @@ public class ValidationExceptionMapper implements ExceptionMapper<ConstraintViol
             erros.add(nomeCampo + ": " + mensagem);
         }
 
-        return Response.status(Response.Status.BAD_REQUEST) // Retorna 400
+        return Response.status(Response.Status.BAD_REQUEST)
                 .entity(new ErrorResponseBody(400, "Erro de Validação", erros))
                 .build();
     }

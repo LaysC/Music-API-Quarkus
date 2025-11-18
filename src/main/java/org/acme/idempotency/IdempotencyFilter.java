@@ -1,6 +1,5 @@
 package org.acme.idempotency;
 
-// 1. IMPORTAMOS O CAFFEINE DIRETAMENTE
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 
@@ -17,7 +16,7 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.Provider;
 import java.io.IOException;
 import java.lang.reflect.Method;
-import java.time.Duration; // Usamos Duration para o Caffeine
+import java.time.Duration;
 import java.time.Instant;
 
 @Provider
@@ -28,17 +27,15 @@ public class IdempotencyFilter implements ContainerRequestFilter, ContainerRespo
     private static final String IDEMPOTENCY_KEY_HEADER = "X-Idempotency-Key";
     private static final String IDEMPOTENT_CONTEXT_PROPERTY = "idempotent-context";
 
-    // 2. NÃO USAMOS @Inject. Criamos nosso próprio cache.
     private final Cache<String, IdempotencyRecord> cache;
 
     @Context
     ResourceInfo resourceInfo;
 
-    // 3. Construtor para inicializar o cache do Caffeine
     public IdempotencyFilter() {
         this.cache = Caffeine.newBuilder()
-                .maximumSize(1000) // Valor do seu application.properties
-                .expireAfterWrite(Duration.ofHours(1)) // Valor do seu application.properties
+                .maximumSize(1000)
+                .expireAfterWrite(Duration.ofHours(1))
                 .build();
     }
 
@@ -67,11 +64,9 @@ public class IdempotencyFilter implements ContainerRequestFilter, ContainerRespo
 
         String cacheKey = createCacheKey(requestContext, idempotencyKey);
 
-        // 4. USAMOS A API DO CAFFEINE: getIfPresent()
         IdempotencyRecord record = cache.getIfPresent(cacheKey);
 
         if (record != null) {
-            // Achamos! Aborta e retorna o cache
             requestContext.abortWith(Response
                     .status(record.getStatus())
                     .entity(record.getBody())
@@ -79,7 +74,6 @@ public class IdempotencyFilter implements ContainerRequestFilter, ContainerRespo
             return;
         }
 
-        // Não achamos, armazena o contexto para o response filter
         requestContext.setProperty(IDEMPOTENT_CONTEXT_PROPERTY,
                 new IdempotentContext(cacheKey, idempotentConfig.expireAfter()));
     }
@@ -97,8 +91,6 @@ public class IdempotencyFilter implements ContainerRequestFilter, ContainerRespo
                 Instant.now().plusSeconds(context.getExpireAfter())
         );
 
-        // 5. USAMOS A API DO CAFFEINE: put()
-        // Isso resolve o "Cannot resolve method 'put'"
         cache.put(context.getCacheKey(), record);
     }
 
@@ -108,9 +100,7 @@ public class IdempotencyFilter implements ContainerRequestFilter, ContainerRespo
                 idempotencyKey;
     }
 
-    // --- Classes Internas ---
 
-    // Contexto para passar dados entre os filtros
     private static class IdempotentContext {
         private final String cacheKey;
         private final int expireAfter;
@@ -123,8 +113,6 @@ public class IdempotencyFilter implements ContainerRequestFilter, ContainerRespo
         public int getExpireAfter() { return expireAfter; }
     }
 
-    // Registro do cache.
-    // Declarada como 'public static' para evitar problemas de serialização/acesso
     public static class IdempotencyRecord {
         public int status;
         public Object body;

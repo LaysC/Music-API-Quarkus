@@ -29,12 +29,10 @@ public class Artista extends PanacheEntityBase {
     @Size(max = 80)
     public String paisDeOrigem;
 
-    // One-to-One: um artista tem um perfil
     @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @JoinColumn(name = "perfil_artista_id")
     public PerfilArtista perfil;
 
-    // One-to-Many: um artista pode ter várias músicas
     @OneToMany(mappedBy = "artista", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JsonIgnore
     public List<Musica> musicas = new ArrayList<>();
